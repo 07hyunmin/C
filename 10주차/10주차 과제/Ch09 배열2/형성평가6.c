@@ -5,6 +5,17 @@ int main(){
     a[0][0] = 1;
     a[0][2] = 1;
     a[0][4] = 1;
+    for(int i = 1; i < 5; i++){
+        for(int j = 0; j < 5; j++){
+            if(j == 0){
+                a[i][j] = a[i - 1][j + 1];
+            }else if(j == 4){
+                a[i][j] = a[i - 1][j - 1];
+            }else{
+                a[i][j] = a[i - 1][j - 1] + a[i - 1][j + 1];
+        }
+    }
+}
     for(int i = 0; i < 5; i++){
         for(int j = 0; j < 5; j++){
             printf("%d ", a[i][j]);
