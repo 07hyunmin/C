@@ -1,0 +1,122 @@
+﻿<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPS 이동 경로 시각화</title>
+    
+    <!-- Leaflet.js CSS (API 키 불필요) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Malgun Gothic', sans-serif;
+        }
+        #map {
+            width: 100vw;
+            height: 100vh;
+        }
+        .info-box {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            z-index: 1000;
+            background: white;
+            padding: 12px 18px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            font-size: 14px;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="info-box" id="status-box">데이터를 불러오는 중...</div>
+    <div id="map"></div>
+
+    <!-- Leaflet.js JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        // 1. 지도 객체 초기화 (데이터 로드 후 자동 이동)
+        const map = L.map('map').setView([42.3634, -71.098465], 16);
+
+        // 2. OpenStreetMap 무료 타일 레이어 추가 (API 키 불필요)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        // 3. 같은 경로의 output.json 파일 불러오기
+        fetch('output.json')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP 오류! 상태 코드: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (!Array.isArray(data) || data.length === 0) {
+                    document.getElementById('status-box').innerText = '표시할 GPS 데이터가 없습니다.';
+                    return;
+                }
+
+                const latlngs = []; // 이동 경로(선)를 그릴 좌표 배열
+
+                data.forEach((point, index) => {
+                    const lat = point.latitude;
+                    // C 코드에서 출력한 키 이름("longtitude") 및 일반 표기("longitude") 모두 대응
+                    const lng = point.longtitude !== undefined ? point.longtitude : point.longitude;
+
+                    if (lat !== undefined && lng !== undefined) {
+                        const coord = [lat, lng];
+                        latlngs.push(coord);
+
+                        // 각 지점에 마커 추가 및 클릭 시 정보 팝업 연결
+                        const marker = L.marker(coord).addTo(map);
+                        marker.bindPopup(`
+                            <b>지점 #${index + 1}</b><br>
+                            위도: ${lat}<br>
+                            경도: ${lng}<br>
+                            정보: <b>${point.info || '없음'}</b>
+                        `);
+
+                        // 첫 번째 지점은 팝업을 기본으로 열어둠
+                        if (index === 0) {
+                            marker.openPopup();
+                        }
+                    }
+                });
+
+                // 4. 좌표들을 순서대로 잇는 이동 경로(빨간색 선) 그리기
+                if (latlngs.length > 0) {
+                    const polyline = L.polyline(latlngs, {
+                        color: '#e63946',
+                        weight: 5,
+                        opacity: 0.85
+                    }).addTo(map);
+
+                    // 전체 이동 경로가 한눈에 들어오도록 지도 화면 범위 자동 맞춤
+                    map.fitBounds(polyline.getBounds(), { padding: [50, 50] });
+                }
+
+                // 우측 상단 상태창 업데이트
+                document.getElementById('status-box').innerHTML = `
+                    <strong>GPS 경로 로드 완료</strong><br>
+                    총 기록 지점: ${latlngs.length}개<br>
+                    <small>(마커를 클릭하면 상세 정보가 표시됩니다)</small>
+                `;
+            })
+            .catch(error => {
+                console.error('JSON 로드 에러:', error);
+                document.getElementById('status-box').innerHTML = `
+                    <span style="color: red;"><strong>데이터 로드 실패</strong></span><br>
+                    output.json 파일 위치와 JSON 문법(마지막 쉼표 등)을 확인하세요.
+                `;
+            });
+    </script>
+</body>
+</html>
